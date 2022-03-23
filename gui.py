@@ -204,7 +204,7 @@ class MyFrame1 (wx.Frame):
         bSizer6 = wx.BoxSizer(wx.VERTICAL)
 
         self.m_staticText1 = wx.StaticText(
-            self, wx.ID_ANY, u"GRE Dev Tool", wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_LEFT)
+            self, wx.ID_ANY, u"GRE/SE Dev Tool", wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_LEFT)
         self.m_staticText1.Wrap(-1)
 
         bSizer6.Add(self.m_staticText1, 0, wx.ALL, 5)
@@ -226,7 +226,7 @@ class MyFrame1 (wx.Frame):
                      wx.ALIGN_CENTER_VERTICAL, 5)
 
         self.cb1 = wx.CheckBox(
-            self, wx.ID_ANY, 'G2 Enable', wx.DefaultPosition)
+            self, wx.ID_ANY, 'Z2 Enable', wx.DefaultPosition)
         self.m_textCtrl21 = wx.TextCtrl(
             self, wx.ID_ANY, u"", wx.DefaultPosition, wx.DefaultSize, 0)
         bSizer30.Add(self.cb1, 0, wx.ALL |
@@ -326,7 +326,7 @@ class MyFrame1 (wx.Frame):
                      wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_CENTER_HORIZONTAL, 5)
 
         self.cb2 = wx.CheckBox(
-            self, wx.ID_ANY, 'G2 Enable', wx.DefaultPosition)
+            self, wx.ID_ANY, 'Z2 Enable', wx.DefaultPosition)
         self.m_textCtrl22 = wx.TextCtrl(
             self, wx.ID_ANY, u"", wx.DefaultPosition, wx.DefaultSize, 0)
         bSizer21.Add(self.cb2, 0, wx.ALL |
@@ -532,12 +532,12 @@ class MyFrame1 (wx.Frame):
                 line_list.append(plot.PolyLine([[center, 0], [center, abs_k_list[row_index][len(
                     abs_k_list[row_index]) // 2 - 1]]], colour='blue', width=1))
             line = plot.PolyLine(data, colour='red', width=2)
-            Z2 = int(G2 * (self.FSEChildThread.original_Z2 /
-                     self.FSEChildThread.original_G2))
             if not self.FSE_Z2_enable:
                 gc = plot.PlotGraphics([line] + line_list, 'G3={},T6={},X1={}'.format(
                     G3, T6, int(G3*G3_ratio)))
             else:
+                Z2 = int(G2 * (self.FSEChildThread.original_Z2 /
+                               self.FSEChildThread.original_G2))
                 gc = plot.PlotGraphics([line] + line_list, 'G3={},T6={},X1={},Z2={}'.format(
                     G3, T6, int(G3*G3_ratio), Z2))
             self.plotter1.Draw(gc)

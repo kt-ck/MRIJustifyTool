@@ -191,7 +191,7 @@ def Justify_FSE(thread, messageThread, X1, Z2_enable=False, xpr_path=XGYMR_XPR, 
 
             target_pos = samples // 2 + 1
 
-            left = int(np.mean(abs_k[0][samples//2 - 10:samples // 2]))
+            left = int(np.mean(abs_k[0][target_pos - 10: target_pos]))
             right = int(np.mean(abs_k[0][-samples // 2:-samples // 2 + 10]))
 
             _pos = np.argmax(abs_k, axis=1)
@@ -214,7 +214,6 @@ def Justify_FSE(thread, messageThread, X1, Z2_enable=False, xpr_path=XGYMR_XPR, 
                             thread.show()
                             return Justify_FSE(thread, messageThread, int(positive*original_G3 * ratio), xpr_path, cache_dir, dll_path, 1, 2, 3, 3, T6_scale1, T6_scale2)
                     elif pos != target_pos:
-                        # return Justify_FSE(thread, messageThread, int(positive*original_G3 * ratio), xpr_path, cache_dir, dll_path, 1, 2, 3, 3, T6_scale1, T6_scale2)
                         G3_scale = G3_scale // 2 if G3_scale >= 3 else 1
                     elif pos == target_pos:
                         if (right - left > 0 and direction == -1) or (right-left < 0 and direction == 1):
@@ -234,7 +233,6 @@ def Justify_FSE(thread, messageThread, X1, Z2_enable=False, xpr_path=XGYMR_XPR, 
                         if (pos_distinct < 0 and direction > 0) or (pos_distinct > 0 and direction < 0):
                             T6_scale1 += 1
                         elif (pos_distinct > 0 and direction > 0) or (pos_distinct < 0 and direction < 0):
-                            # return Justify_FSE(thread, messageThread, int(positive*original_G3 * ratio), xpr_path, cache_dir, dll_path, 1, 2, 3, 3, 1, 1)
                             T6_scale1 = T6_scale1 // 2 if T6_scale1 >= 3 else 1
                     last_G3 = original_G3
                     last_T6 = original_T6 - T6_scale1 * np.sign(pos_distinct) * 10 - int(
