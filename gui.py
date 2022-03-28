@@ -7,6 +7,7 @@
 # PLEASE DO *NOT* EDIT THIS FILE!
 ###########################################################################
 
+from concurrent.futures import thread
 import wx
 import wx.xrc
 import wx.lib.plot as plot
@@ -27,6 +28,11 @@ class GREThread (threading.Thread):
         self.data = {}
         self._show = threading.Event()
         self.info = ""
+        self.G2_enable = False
+        self.X1_enable = False
+        self.G2 = 0
+        self.original_Z2 = 0
+        self.original_G2 = 0
 
     def show(self):
         self._show.set()
@@ -71,6 +77,7 @@ class FSEThread (threading.Thread):
         self.G2 = 0
         self.original_Z2 = 0
         self.original_G2 = 0
+        self.X1_enable = False
 
     def run(self):
         self.frame.runFSEJustify(self)
@@ -141,6 +148,7 @@ class MessageManager(threading.Thread):
                 self._show.clear()
         print("message manager exit")
 
+
 ###########################################################################
 # Class MyFrame1
 ###########################################################################
@@ -151,8 +159,10 @@ class MyFrame1 (wx.Frame):
     def __init__(self, parent):
         self.FSE_Z2_enable = False
         self.GRE_Z2_enable = False
+        self.FSE_X1_enable = False
+        self.GRE_X1_enable = False
         wx.Frame.__init__(self, parent, id=wx.ID_ANY, title="Params Dev Tool", pos=wx.DefaultPosition, size=wx.Size(
-            1080, 700), style=wx.DEFAULT_FRAME_STYLE | wx.TAB_TRAVERSAL)
+            1200, 700), style=wx.DEFAULT_FRAME_STYLE | wx.TAB_TRAVERSAL)
 
         self.SetSizeHints(wx.DefaultSize, wx.DefaultSize)
         self.SetBackgroundColour(
@@ -214,12 +224,17 @@ class MyFrame1 (wx.Frame):
         bSizer7 = wx.BoxSizer(wx.VERTICAL)
 
         bSizer30 = wx.BoxSizer(wx.HORIZONTAL)
+        self.cb5 = wx.CheckBox(
+            self, wx.ID_ANY, 'X1 Enable', wx.DefaultPosition)
+        self.cb5.Bind(wx.EVT_CHECKBOX, self.onGREX1Enable)
         self.m_staticText20 = wx.StaticText(
             self, wx.ID_ANY, u"X1", wx.DefaultPosition, wx.DefaultSize, 0)
         self.m_staticText20.Wrap(-1)
 
         self.m_textCtrl20 = wx.TextCtrl(
             self, wx.ID_ANY, u"", wx.DefaultPosition, wx.DefaultSize, 0)
+        bSizer30.Add(self.cb5, 0, wx.ALL |
+                     wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_CENTER_HORIZONTAL, 5)
         bSizer30.Add(self.m_staticText20, 0, wx.ALL |
                      wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_CENTER_HORIZONTAL, 5)
         bSizer30.Add(self.m_textCtrl20, 0, wx.ALL |
@@ -233,7 +248,7 @@ class MyFrame1 (wx.Frame):
                      wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_CENTER_HORIZONTAL, 5)
         bSizer30.Add(self.m_textCtrl21, 0, wx.ALL |
                      wx.ALIGN_CENTER_VERTICAL, 5)
-        self.Bind(wx.EVT_CHECKBOX, self.onGREG2Enable)
+        self.cb1.Bind(wx.EVT_CHECKBOX, self.onGREG2Enable)
 
         bSizer7.Add(bSizer30, 1, wx.LEFT, 5)
 
@@ -315,9 +330,15 @@ class MyFrame1 (wx.Frame):
         bSizer16 = wx.BoxSizer(wx.VERTICAL)
 
         bSizer21 = wx.BoxSizer(wx.HORIZONTAL)
+        self.cb6 = wx.CheckBox(
+            self, wx.ID_ANY, 'X1 Enable', wx.DefaultPosition)
+        self.cb6.Bind(wx.EVT_CHECKBOX, self.onFSEX1Enable)
         self.m_staticText10 = wx.StaticText(
             self, wx.ID_ANY, u"X1", wx.DefaultPosition, wx.DefaultSize, 0)
         self.m_staticText10.Wrap(-1)
+
+        bSizer21.Add(self.cb6, 0, wx.ALL |
+                     wx.ALIGN_CENTER_VERTICAL, 5)
         bSizer21.Add(self.m_staticText10, 0, wx.ALL |
                      wx.ALIGN_CENTER_VERTICAL, 5)
         self.m_textCtrl8 = wx.TextCtrl(
@@ -333,7 +354,7 @@ class MyFrame1 (wx.Frame):
                      wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_CENTER_HORIZONTAL, 5)
         bSizer21.Add(self.m_textCtrl22, 0, wx.ALL |
                      wx.ALIGN_CENTER_VERTICAL, 5)
-        self.Bind(wx.EVT_CHECKBOX, self.onFSEG2Enable)
+        self.cb2.Bind(wx.EVT_CHECKBOX, self.onFSEG2Enable)
         bSizer16.Add(bSizer21, 1, wx.LEFT, 5)
 
         bSizer17 = wx.BoxSizer(wx.HORIZONTAL)
@@ -480,46 +501,79 @@ class MyFrame1 (wx.Frame):
         else:
             self.GRE_Z2_enable = False
 
+    def onGREX1Enable(self, event):
+        cb = event.GetEventObject()
+        if bool(cb.GetValue()):
+            self.GRE_X1_enable = True
+        else:
+            self.GRE_X1_enable = False
+
+    def onFSEX1Enable(self, event):
+        cb = event.GetEventObject()
+        if bool(cb.GetValue()):
+            self.FSE_X1_enable = True
+        else:
+            self.FSE_X1_enable = False
+
     def drawGREData(self):
         if "abs_k" in self.GREChildThread.data:
-            G3 = self.GREChildThread.data["G3"]
             optimal_layer = self.GREChildThread.data["optimal_layer"]
             optimal_channel = self.GREChildThread.data["optimal_channel"]
-            abs_k_list = self.GREChildThread.data["abs_k"][0]
+            self.m_staticText40.SetLabelText(
+                "optimal_channel: {}        optimal_layer: {}".format(optimal_channel, optimal_layer))
+            if not "G2_enable" in self.GREChildThread.data:
+                reference = str(self.GREChildThread.data["reference"])
+                self.m_staticText16.SetLabelText(reference)
+            else:
+                G2 = self.GREChildThread.data["G2"]
+                Z2 = int(G2 * (self.GREChildThread.original_Z2 /
+                               self.GREChildThread.original_G2))
             nmax = self.GREChildThread.data["nmax"]
-            reference = str(self.GREChildThread.data["reference"])
-            X1 = self.GREChildThread.data["X1"]
-            self.m_staticText16.SetLabelText(reference)
+            G3 = self.GREChildThread.data["G3"]
+            abs_k_list = self.GREChildThread.data["abs_k"][0]
+            if self.GRE_X1_enable:
+                X1 = self.GREChildThread.data["X1"]
             data = [[index, abs_k_list[index]]
                     for index in range(len(abs_k_list))]
             line = plot.PolyLine(data, colour='red', width=2)
             line2 = plot.PolyLine(
                 [[len(abs_k_list) // 2, 0], [len(abs_k_list) // 2, nmax]], colour='blue', width=1)
-            gc = plot.PlotGraphics([line, line2], 'G3={},nmax={},X1={}'.format(
-                G3, nmax, X1))
+
+            if not "G2_enable" in self.GREChildThread.data:
+                gc = plot.PlotGraphics([line, line2], 'G3={},nmax={},X1={}'.format(
+                    G3, nmax, X1))
+            else:
+                if self.GRE_X1_enable:
+                    gc = plot.PlotGraphics([line, line2], 'G3={},G2={},nmax={},X1={},Z2={}'.format(
+                        G3, G2, nmax, X1, Z2))
+                else:
+                    gc = plot.PlotGraphics([line, line2], 'G3={},G2={},nmax={},Z2={}'.format(
+                        G3, G2, nmax, Z2))
             self.plotter.Draw(gc)
-            self.m_staticText40.SetLabelText(
-                "optimal_channel: {}        optimal_layer: {}".format(optimal_channel, optimal_layer))
 
         self.m_staticText15.SetLabelText(self.GREChildThread.info)
 
     def drawFSEData(self):
         if "abs_k" in self.FSEChildThread.data:
+            optimal_layer = self.FSEChildThread.data["optimal_layer"]
+            optimal_channel = self.FSEChildThread.data["optimal_channel"]
+            self.m_staticText41.SetLabelText(
+                "optimal_channel: {}        optimal_layer: {}".format(optimal_channel, optimal_layer))
             if not "G2_enable" in self.FSEChildThread.data:
-                optimal_layer = self.FSEChildThread.data["optimal_layer"]
-                optimal_channel = self.FSEChildThread.data["optimal_channel"]
                 g3_ref = self.FSEChildThread.data["G3_reference"]
                 t6_ref = self.FSEChildThread.data["t6_reference"]
                 self.m_staticText12.SetLabelText("Reference: " + str(g3_ref))
                 self.m_staticText13.SetLabelText("Reference: " + str(t6_ref))
-                self.m_staticText41.SetLabelText(
-                    "optimal_channel: {}        optimal_layer: {}".format(optimal_channel, optimal_layer))
+
             else:
                 G2 = self.FSEChildThread.data["G2"]
+                Z2 = int(G2 * (self.FSEChildThread.original_Z2 /
+                               self.FSEChildThread.original_G2))
             abs_k_list = self.FSEChildThread.data["abs_k"]
             G3 = self.FSEChildThread.data["G3"]
-            G3_ratio = self.FSEChildThread.data["G3_ratio"]
             T6 = self.FSEChildThread.data["T6"]
+            if "G3_ratio" in self.FSEChildThread.data:
+                G3_ratio = self.FSEChildThread.data["G3_ratio"]
             data = []
             line_list = []
             for row_index in range(len(abs_k_list)):
@@ -532,14 +586,16 @@ class MyFrame1 (wx.Frame):
                 line_list.append(plot.PolyLine([[center, 0], [center, abs_k_list[row_index][len(
                     abs_k_list[row_index]) // 2 - 1]]], colour='blue', width=1))
             line = plot.PolyLine(data, colour='red', width=2)
-            if not self.FSE_Z2_enable:
+            if not "G2_enable" in self.FSEChildThread.data:
                 gc = plot.PlotGraphics([line] + line_list, 'G3={},T6={},X1={}'.format(
                     G3, T6, int(G3*G3_ratio)))
             else:
-                Z2 = int(G2 * (self.FSEChildThread.original_Z2 /
-                               self.FSEChildThread.original_G2))
-                gc = plot.PlotGraphics([line] + line_list, 'G3={},T6={},X1={},Z2={}'.format(
-                    G3, T6, int(G3*G3_ratio), Z2))
+                if "G3_ratio" in self.FSEChildThread.data:
+                    gc = plot.PlotGraphics([line] + line_list, 'G3={},G2={},T6={},X1={},Z2={}'.format(
+                        G3, G2, T6, int(G3*G3_ratio), Z2))
+                else:
+                    gc = plot.PlotGraphics([line] + line_list, 'G3={},G2={},T6={},Z2={}'.format(
+                        G3, G2, T6, Z2))
             self.plotter1.Draw(gc)
 
         self.m_staticText14.SetLabelText(self.FSEChildThread.info)
@@ -547,13 +603,21 @@ class MyFrame1 (wx.Frame):
     def runFSEJustify(self, thread):
         G3_distinct = self.m_textCtrl6.GetValue()
         T6_distinct = self.m_textCtrl7.GetValue()
-        X1 = self.m_textCtrl8.GetValue()
-
-        if X1 == "":
-            self.messageThread.show(400, "X1 parameter not be typed.")
+        X1 = -1
+        if not self.FSE_X1_enable and not self.FSE_Z2_enable:
+            self.messageThread.show(
+                400, "X1 and Z2 parameters are not be typed at the same time.")
             return
-        else:
-            X1 = int(X1)
+
+        if self.FSE_X1_enable:
+            thread.X1_enable = True
+            X1 = self.m_textCtrl8.GetValue()
+            if X1 == "":
+                self.messageThread.show(400, "X1 parameter not be typed.")
+                return
+            else:
+                X1 = int(X1)
+
         if self.FSE_Z2_enable:
             thread.G2_enable = True
             original_Z2 = self.m_textCtrl22.GetValue()
@@ -562,20 +626,30 @@ class MyFrame1 (wx.Frame):
             else:
                 self.messageThread.show(400, "Z2 parameter not be typed.")
                 return
-        optimal_G3, nmax, abs_k, optiaml_T6, optimal_layer, optimal_channel, new_X1 = Justify_FSE(
-            thread, self.messageThread, X1, self.FSE_Z2_enable, self.XGYMR_XPR, self.CACHE_DIR, self.DLL, G3_distinct=float(G3_distinct), t6_distinct=float(T6_distinct))
+        try:
+            optimal_G3, abs_k, optiaml_T6, optimal_layer, optimal_channel, new_X1 = Justify_FSE(
+                thread, self.messageThread, X1, self.FSE_Z2_enable, self.XGYMR_XPR, self.CACHE_DIR, self.DLL, G3_distinct=float(G3_distinct), t6_distinct=float(T6_distinct))
+        except:
+            self.messageThread.show(400, "running error")
+            return
 
         abs_k_list = abs_k.tolist()
         data = []
-
+        time.sleep(1)
         for row_index in range(len(abs_k_list)):
             for col_index in range(len(abs_k_list[row_index])):
                 data.append(
                     [col_index + row_index * len(abs_k_list[row_index]), abs_k_list[row_index][col_index]])
         line = plot.PolyLine(data, colour='red', width=2)
         if self.FSE_Z2_enable:
-            gc = plot.PlotGraphics([line], 'optimal_G3={},optimal_T6={},X1={},Z2={}'.format(
-                optimal_G3, optiaml_T6, new_X1, int(thread.original_Z2 / thread.original_G2 * thread.G2)))
+            if self.FSE_X1_enable:
+                gc = plot.PlotGraphics([line], 'X1={},Z2={},optimal_G3={},optimal_T6={},optimal_G2={}'.format(
+                    new_X1, int(thread.original_Z2 /
+                                thread.original_G2 * thread.G2),
+                    optimal_G3, optiaml_T6, thread.G2))
+            else:
+                gc = plot.PlotGraphics([line], 'Z2={},optimal_G2={}'.format(
+                    int(thread.original_Z2 / thread.original_G2 * thread.G2), thread.G2))
         else:
             gc = plot.PlotGraphics([line], 'optimal_G3={},optimal_T6={},X1={}'.format(
                 optimal_G3, optiaml_T6, new_X1))
@@ -583,26 +657,54 @@ class MyFrame1 (wx.Frame):
 
     def runGREJustify(self, thread):
         G3_distinct = float(self.m_textCtrl5.GetValue())
-        X1 = self.m_textCtrl20.GetValue()
-        if X1 == "":
-            self.messageThread.show(400, "X1 parameter not be typed.")
+        X1 = -1
+        if not self.GRE_X1_enable and not self.GRE_Z2_enable:
+            self.messageThread.show(
+                400, "X1 and Z2 parameters are not be typed at the same time.")
             return
-        else:
-            X1 = int(X1)
-        if self.XGYMR_XPR != "" or self.CACHE_DIR != "" or self.DLL != "":
+
+        if self.GRE_X1_enable:
+            thread.X1_enable = True
+            X1 = self.m_textCtrl20.GetValue()
+            if X1 == "":
+                self.messageThread.show(400, "X1 parameter not be typed.")
+                return
+            else:
+                X1 = int(X1)
+
+        if self.GRE_Z2_enable:
+            thread.G2_enable = True
+            original_Z2 = self.m_textCtrl21.GetValue()
+            if original_Z2 != "":
+                thread.original_Z2 = int(original_Z2)
+            else:
+                self.messageThread.show(400, "Z2 parameter not be typed.")
+                return
+
+        try:
             optimal_G3, nmax, abs_k, new_X1 = findOptimalG3(
-                thread, X1, self.XGYMR_XPR, self.CACHE_DIR, self.DLL, G3_distinct=G3_distinct)
-        else:
-            optimal_G3, nmax, abs_k, new_X1 = findOptimalG3(
-                thread, X1, G3_distinct=G3_distinct)
+                thread, X1, self.GRE_Z2_enable, self.XGYMR_XPR, self.CACHE_DIR, self.DLL, G3_distinct=G3_distinct)
+        except:
+            self.messageThread.show(400, "running error")
+            return
+
         time.sleep(1)
         abs_k_list = abs_k[0].tolist()
         data = [[x, abs_k_list[x]] for x in range(len(abs_k_list))]
         line = plot.PolyLine(data, colour='red', width=1)
         line2 = plot.PolyLine(
             [[len(abs_k_list) // 2, 0], [len(abs_k_list) // 2, nmax]], colour='blue', width=2)
-        gc = plot.PlotGraphics(
-            [line, line2], 'X1={},optimal_G3={},nmax={}'.format(new_X1, optimal_G3, nmax))
+
+        if not self.GRE_Z2_enable:
+            gc = plot.PlotGraphics(
+                [line, line2], 'X1={},optimal_G3={},nmax={}'.format(new_X1, optimal_G3, nmax))
+        else:
+            if self.GRE_X1_enable:
+                gc = plot.PlotGraphics(
+                    [line, line2], 'X1={},Z2={},optimal_G3={},optimal_G2={},nmax={}'.format(new_X1, int(thread.original_Z2 / thread.original_G2 * thread.G2), optimal_G3, thread.G2, nmax))
+            else:
+                gc = plot.PlotGraphics(
+                    [line, line2], 'Z2={},G3={},G2={},nmax={}'.format(int(thread.original_Z2 / thread.original_G2 * thread.G2), optimal_G3, thread.G2, nmax))
         self.plotter.Draw(gc)
 
 

@@ -163,154 +163,167 @@ def Justify_FSE(thread, messageThread, X1, Z2_enable=False, xpr_path=XGYMR_XPR, 
     # messageThread.show(101, "code is running ...")
     thread.info = "Info: code is running ..."
     thread.show()
-    for i in range(10000):
-        if thread.stopped():
-            thread.info = "Info: pause ..."
-            thread.show()
-            sys.exit()
-        FSELocalConfig()
-        dataObj = getInfoWithParams([{"key": "G3", "value": last_G3}, {
-                                    "key": "T6", "value": last_T6}], str(i + 1))
-        if dataObj["status"]:
-            pos = dataObj["params"]["pos"]
-            nmax = dataObj["params"]["nmax"]
-            samples = dataObj["params"]["samples"]
-            param_info = dataObj["params"]["param_info"]
-            for param in param_info:
-                if "G3" == param["key"]:
-                    original_G3 = param["original_value"] if i <= 1 else param["value"]
-                elif "T6" == param["key"]:
-                    original_T6 = param["original_value"] if i <= 1 else param["value"]
-
-            positive = -1 if original_G3 < 0 else 1
-            original_G3 = abs(original_G3)
-
-            last_G3 = abs(last_G3)
-
-            abs_k = dataObj["params"]["abs_k"]
-
-            target_pos = samples // 2 + 1
-
-            left = int(np.mean(abs_k[0][target_pos - 10: target_pos]))
-            right = int(np.mean(abs_k[0][-samples // 2:-samples // 2 + 10]))
-
-            _pos = np.argmax(abs_k, axis=1)
-            print("_pos = {}".format(_pos + 1))
-
-            t6_left = int(
-                np.mean(np.mean(abs_k[:, samples//2 - 10:samples // 2], axis=1)))
-            t6_right = int(
-                np.mean(np.mean(abs_k[:, -samples // 2:-samples // 2 + 10], axis=1)))
-            k = np.array([i for i in range(len(_pos), 0, -1)])
-            pos_distinct = np.sum((_pos + 1 - target_pos)*k)
-            error_break = 20
-            infinite = 100000000
-            if direction != 0:
-                if pos != target_pos or abs((right - left)) / left >= G3_distinct:
-                    if (pos - target_pos > 0 and direction == -1) or (pos - target_pos < 0 and direction == 1):
-                        G3_scale += 1
-                        if G3_scale >= error_break:
-                            thread.info = "Info: Maybe G3 step is really large, so restart algorithm ..."
-                            thread.show()
-                            return Justify_FSE(thread, messageThread, int(positive*original_G3 * ratio), xpr_path, cache_dir, dll_path, 1, 2, 3, 3, T6_scale1, T6_scale2)
-                    elif pos != target_pos:
-                        G3_scale = G3_scale // 2 if G3_scale >= 3 else 1
-                    elif pos == target_pos:
-                        if (right - left > 0 and direction == -1) or (right-left < 0 and direction == 1):
-                            symmetry_scale += 1
-                        else:
-                            symmetry_scale = symmetry_scale // 2 if symmetry_scale >= 3 else 1
-                    last_G3 = original_G3 - np.sign(pos - target_pos) * G3_step * G3_scale ** 2 - symmetry_step * int(
-                        np.sign(right - left) / (1 + infinite*abs(pos - target_pos))) * symmetry_scale
-                    last_T6 = original_T6
-                else:
-                    if pos_distinct == 0:
-                        if (t6_right - t6_left > 0 and direction < 0) or (t6_right - t6_left < 0 and direction > 0):
-                            T6_scale2 += 1
-                        elif (t6_right - t6_left > 0 and direction > 0) or (t6_right-t6_left < 0 and direction < 0):
-                            T6_scale2 = T6_scale2 // 2 if T6_scale2 >= 3 else 1
-                    else:
-                        if (pos_distinct < 0 and direction > 0) or (pos_distinct > 0 and direction < 0):
-                            T6_scale1 += 1
-                        elif (pos_distinct > 0 and direction > 0) or (pos_distinct < 0 and direction < 0):
-                            T6_scale1 = T6_scale1 // 2 if T6_scale1 >= 3 else 1
-                    last_G3 = original_G3
-                    last_T6 = original_T6 - T6_scale1 * np.sign(pos_distinct) * 10 - int(
-                        T6_scale2 * np.sign((t6_right - t6_left)/(1+abs(pos_distinct)*infinite))) * 10
-
-            else:
-                last_G3 = original_G3
-                last_T6 = original_T6
-                if ratio == -1:
-                    ratio = X1 / (original_G3 * positive)
-
-            direction = -1 if pos - target_pos > 0 or (pos == target_pos and abs((right - left)) / left >= G3_distinct and right-left > 0) \
-                or (pos == target_pos and abs((right - left)) / left < G3_distinct and (pos_distinct > 0 or last_T6 - original_T6 < 0)) else 1
-
-            last_G3 = positive * last_G3
-            print(abs((right - left)) / left)
-            print(
-                "G3 = {}, new_G3 = {},target_pos = {}, pos = {}, left = {}, right = {}, G3_scale = {}, symmetry_scale={}".format(
-                    original_G3, last_G3, target_pos, pos, left, right, G3_scale, symmetry_scale))
-            print("T6 = {}, new_T6 = {},pos_distinct={},t6_left={},t6_right={}, T6_scale1 = {},T6_scale2={} direction={}".format(
-                original_T6, last_T6, pos_distinct, t6_left, t6_right, T6_scale1, T6_scale2, direction))
-            print(abs(t6_right - t6_left) / t6_left)
-
-            if pos == target_pos and abs((right - left)) / left < G3_distinct and pos_distinct == 0 and abs(t6_right - t6_left) / t6_left < t6_distinct:
-                break
-
-            if _pos.shape[0] > 10:
-                thread.info = "Info: pos = ["
-                _pos_list = _pos.tolist()
-                for index in range(len(_pos_list)):
-                    if index != 0:
-                        thread.info += ","
-                    thread.info += str(_pos_list[index])
-                thread.info += "...]"
-            else:
-                thread.info = "Info: pos = {}".format(_pos)
+    if thread.X1_enable:
+        for i in range(10000):
+            if thread.stopped():
+                thread.info = "Info: pause ..."
                 thread.show()
-            thread.data = {"G3": positive * original_G3,
-                           "T6": original_T6,
-                           "abs_k": abs_k,
-                           "optimal_layer": optimal_channel,
-                           "optimal_channel": optimal_xmd_file,
-                           "G3_ratio": ratio,
-                           "t6_reference": abs(t6_right - t6_left) / t6_left,
-                           "G3_reference": abs((right - left)) / left
-                           }
-            thread.show()
+                sys.exit()
+            FSELocalConfig()
+            dataObj = getInfoWithParams([{"key": "G3", "value": last_G3}, {
+                                        "key": "T6", "value": last_T6}], str(i + 1))
+            if dataObj["status"]:
+                pos = dataObj["params"]["pos"]
+                nmax = dataObj["params"]["nmax"]
+                samples = dataObj["params"]["samples"]
+                param_info = dataObj["params"]["param_info"]
+                for param in param_info:
+                    if "G3" == param["key"]:
+                        original_G3 = param["original_value"] if i <= 1 else param["value"]
+                    elif "T6" == param["key"]:
+                        original_T6 = param["original_value"] if i <= 1 else param["value"]
 
-        else:
-            print("some error occurs")
-            messageThread.show(
-                500, "can not send the XPR file, please check the XPR file.")
-            thread.stop()
-            sys.exit()
-    optimal_G3 = positive*original_G3
-    X1 = int(positive*original_G3 * ratio)
+                positive = -1 if original_G3 < 0 else 1
+                original_G3 = abs(original_G3)
+
+                last_G3 = abs(last_G3)
+
+                abs_k = dataObj["params"]["abs_k"]
+
+                target_pos = samples // 2 + 1
+
+                left = int(np.mean(abs_k[0][target_pos - 10: target_pos]))
+                right = int(
+                    np.mean(abs_k[0][-samples // 2:-samples // 2 + 10]))
+
+                _pos = np.argmax(abs_k, axis=1)
+                print("_pos = {}".format(_pos + 1))
+
+                t6_left = int(
+                    np.mean(np.mean(abs_k[:, samples//2 - 10:samples // 2], axis=1)))
+                t6_right = int(
+                    np.mean(np.mean(abs_k[:, -samples // 2:-samples // 2 + 10], axis=1)))
+                k = np.array([i for i in range(len(_pos), 0, -1)])
+                pos_distinct = np.sum((_pos + 1 - target_pos)*k)
+                error_break = 20
+                infinite = 100000000
+                if direction != 0:
+                    if pos != target_pos or abs((right - left)) / left >= G3_distinct:
+                        if (pos - target_pos > 0 and direction == -1) or (pos - target_pos < 0 and direction == 1):
+                            G3_scale += 1
+                            if G3_scale >= error_break:
+                                thread.info = "Info: Maybe G3 step is really large, so restart algorithm ..."
+                                thread.show()
+                                time.sleep(1)
+                                return Justify_FSE(thread, messageThread, int(positive*original_G3 * ratio), Z2_enable, xpr_path, cache_dir, dll_path, 1, 2, 3, 3, T6_scale1, T6_scale2)
+                        elif pos != target_pos:
+                            G3_scale = G3_scale // 2 if G3_scale >= 3 else 1
+                        elif pos == target_pos:
+                            if (right - left > 0 and direction == -1) or (right-left < 0 and direction == 1):
+                                symmetry_scale += 1
+                            else:
+                                symmetry_scale = symmetry_scale // 2 if symmetry_scale >= 3 else 1
+                        last_G3 = original_G3 - np.sign(pos - target_pos) * G3_step * G3_scale ** 2 - symmetry_step * int(
+                            np.sign(right - left) / (1 + infinite*abs(pos - target_pos))) * symmetry_scale
+                        last_T6 = original_T6
+                    else:
+                        if pos_distinct == 0:
+                            if (t6_right - t6_left > 0 and direction < 0) or (t6_right - t6_left < 0 and direction > 0):
+                                T6_scale2 += 1
+                            elif (t6_right - t6_left > 0 and direction > 0) or (t6_right-t6_left < 0 and direction < 0):
+                                T6_scale2 = T6_scale2 // 2 if T6_scale2 >= 3 else 1
+                        else:
+                            if (pos_distinct < 0 and direction > 0) or (pos_distinct > 0 and direction < 0):
+                                T6_scale1 += 1
+                            elif (pos_distinct > 0 and direction > 0) or (pos_distinct < 0 and direction < 0):
+                                T6_scale1 = T6_scale1 // 2 if T6_scale1 >= 3 else 1
+                        last_G3 = original_G3
+                        last_T6 = original_T6 - T6_scale1 * np.sign(pos_distinct) * 6 - int(
+                            T6_scale2 * np.sign((t6_right - t6_left)/(1+abs(pos_distinct)*infinite))) * 6
+
+                else:
+                    last_G3 = original_G3
+                    last_T6 = original_T6
+                    if ratio == -1:
+                        ratio = X1 / (original_G3 * positive)
+
+                direction = -1 if pos - target_pos > 0 or (pos == target_pos and abs((right - left)) / left >= G3_distinct and right-left > 0) \
+                    or (pos == target_pos and abs((right - left)) / left < G3_distinct and (pos_distinct > 0 or last_T6 - original_T6 < 0)) else 1
+
+                last_G3 = positive * last_G3
+                print(abs((right - left)) / left)
+                print(
+                    "G3 = {}, new_G3 = {},target_pos = {}, pos = {}, left = {}, right = {}, G3_scale = {}, symmetry_scale={}".format(
+                        original_G3, last_G3, target_pos, pos, left, right, G3_scale, symmetry_scale))
+                print("T6 = {}, new_T6 = {},pos_distinct={},t6_left={},t6_right={}, T6_scale1 = {},T6_scale2={} direction={}".format(
+                    original_T6, last_T6, pos_distinct, t6_left, t6_right, T6_scale1, T6_scale2, direction))
+                print(abs(t6_right - t6_left) / t6_left)
+
+                _pos_list = _pos.tolist()
+                print(len(_pos_list))
+                if len(_pos_list) > 10:
+                    thread.info = "Info: pos = ["
+
+                    for index in range(10):
+                        if index != 0:
+                            thread.info += ","
+                        thread.info += str(_pos_list[index])
+                    thread.info += "...]"
+                else:
+                    thread.info = "Info: pos = {}".format(_pos)
+                    thread.show()
+                thread.data = {"G3": positive * original_G3,
+                               "T6": original_T6,
+                               "abs_k": abs_k,
+                               "optimal_layer": optimal_channel,
+                               "optimal_channel": optimal_xmd_file,
+                               "G3_ratio": ratio,
+                               "t6_reference": abs(t6_right - t6_left) / t6_left,
+                               "G3_reference": abs((right - left)) / left
+                               }
+                thread.show()
+
+                if pos == target_pos and abs((right - left)) / left < G3_distinct and pos_distinct == 0 and abs(t6_right - t6_left) / t6_left < t6_distinct:
+                    break
+
+            else:
+                print("some error occurs")
+                messageThread.show(
+                    500, "can not send the XPR file, please check the XPR file.")
+                thread.stop()
+                sys.exit()
+        optimal_G3 = positive*original_G3
+        X1 = int(positive*original_G3 * ratio)
     if Z2_enable:
         thread.info = "Info: Justify G2 paramter ..."
         thread.show()
-        dataObj = getInfoWithParams([{"key": "G3", "value": optimal_G3}, {
-            "key": "T6", "value": original_T6}, {
+        dataObj = getInfoWithParams([{"key": "G3", "value": -1}, {
+            "key": "T6", "value": -1}, {
             "key": "G2", "value": -1
         }], "Z2_0")
         param_info = dataObj["params"]["param_info"]
         for param in param_info:
             if "G2" == param["key"]:
                 last_G2 = param["original_value"]
+            if "G3" == param["key"]:
+                optimal_G3 = param["original_value"]
+            elif "T6" == param["key"]:
+                original_T6 = param["original_value"]
+
         thread.original_G2 = last_G2
         last_abs_k = dataObj["params"]["abs_k"]
         last_max_k = np.max(last_abs_k, axis=1)
         direction = 1
-        new_G2 = last_G2 + 10
+        new_G2 = last_G2 + 3
         G2_scale = 1
-        G2_step = 6
+        G2_step = 3
         count = 0
         for i in range(10000):
-            dataObj = getInfoWithParams([{"key": "G3", "value": optimal_G3}, {
-                                        "key": "T6", "value": original_T6}, {
+            if thread.stopped():
+                thread.info = "Info: pause ..."
+                thread.show()
+                sys.exit()
+            dataObj = getInfoWithParams([{
                 "key": "G2", "value": new_G2
             }], "Z2_{}".format(i+1))
 
@@ -329,6 +342,7 @@ def Justify_FSE(thread, messageThread, X1, Z2_enable=False, xpr_path=XGYMR_XPR, 
             new_G2 = new_G2 + int(direction * G2_step *
                                   G2_scale * np.sign(delta_k))
 
+            abs_k = new_abs_k
             direction = np.sign(new_G2 - last_G2)
             print("new_G2={}, last_G2={}, new_abs={}, last_abs={},delta_k={}, count={}".format(
                 new_G2, last_G2, np.sum(new_max_k), np.sum(last_max_k), delta_k, count))
@@ -339,8 +353,11 @@ def Justify_FSE(thread, messageThread, X1, Z2_enable=False, xpr_path=XGYMR_XPR, 
                            "abs_k": new_abs_k,
                            "G2": new_G2,
                            "G2_enable": True,
-                           "G3_ratio": ratio,
+                           "optimal_layer": optimal_channel,
+                           "optimal_channel": optimal_xmd_file,
                            }
+            if thread.X1_enable:
+                thread.data["G3_ratio"] = ratio
             thread.show()
         optimal_G2 = new_G2 if delta_k > 0 else last_G2
         thread.G2 = optimal_G2
@@ -348,7 +365,7 @@ def Justify_FSE(thread, messageThread, X1, Z2_enable=False, xpr_path=XGYMR_XPR, 
     thread.show()
     thread.stop()
 
-    return optimal_G3, nmax, abs_k, original_T6, optimal_channel, optimal_xmd_file, X1
+    return optimal_G3, abs_k, original_T6, optimal_channel, optimal_xmd_file, X1
 
 
 if __name__ == "__main__":
